@@ -1,0 +1,189 @@
+<!--
+
+  Copyright (C) 2016 Joel Holdsworth <joel@airwebreathe.org.uk>
+
+  Permission to use, copy, modify, and/or distribute this software for any
+  purpose with or without fee is hereby granted, provided that the above
+  copyright notice and this permission notice appear in all copies.
+
+  THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+  WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+  MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+  ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+  WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+  ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+-->
+
+<?xml version="1.0"?>
+<architecture>
+  <models>
+    <model name="SB_CARRY">
+      <input_ports>
+        <port name="CI"/>
+        <port name="I0"/>
+        <port name="I1"/>
+      </input_ports>
+      <output_ports>
+        <port name="CO"/>
+      </output_ports>
+    </model>
+    <model name="SB_DFF">
+      <input_ports>
+        <port name="C" is_clock="1"/>
+        <port name="D"/>
+      </input_ports>
+      <output_ports>
+        <port name="Q"/>
+      </output_ports>
+    </model>
+    <model name="SB_DFFE">
+      <input_ports>
+        <port name="C" is_clock="1"/>
+        <port name="D"/>
+        <port name="E"/>
+      </input_ports>
+      <output_ports>
+        <port name="Q"/>
+      </output_ports>
+    </model>
+    <model name="SB_DFFSR">
+      <input_ports>
+        <port name="C" is_clock="1"/>
+        <port name="D"/>
+        <port name="R"/>
+      </input_ports>
+      <output_ports>
+        <port name="Q"/>
+      </output_ports>
+    </model>
+    <model name="SB_DFFESR">
+      <input_ports>
+        <port name="C" is_clock="1"/>
+        <port name="D"/>
+        <port name="E"/>
+        <port name="R"/>
+      </input_ports>
+      <output_ports>
+        <port name="Q"/>
+      </output_ports>
+    </model>
+    <model name="SB_LUT4">
+      <input_ports>
+        <port name="I0"/>
+        <port name="I1"/>
+        <port name="I2"/>
+        <port name="I3"/>
+      </input_ports>
+      <output_ports>
+        <port name="O"/>
+      </output_ports>
+    </model>
+    <model name="SB_PLL40_CORE">
+      <input_ports>
+        <port name="BYPASS"/>
+        <port name="LOCK"/>
+        <port name="PLLOUTCORE" is_clock="1"/>
+        <port name="REFERENCECLK" is_clock="1"/>
+        <port name="RESETB"/>
+      </input_ports>
+      <output_ports>
+        <port name="O"/>
+      </output_ports>
+    </model>
+  </models>
+  <layout width="33" height="33"/>
+  <device>
+    <!--
+      Taken from vpr/sample_arch.xml which has realistic model data for a
+      hypothetical 40 nm architecture.
+    -->
+    <sizing R_minW_nmos="8926" R_minW_pmos="16067"/>
+    <timing C_ipin_cblock="1.47e-15" T_ipin_cblock="7.247000e-11"/>
+    <switch_block />
+  </device>
+  <switchlist>
+  </switchlist>
+  <segmentlist>
+  </segmentlist>
+  <complexblocklist>
+    <pb_type name="PLBESR">
+      <input name="I" num_pins="32" equivalent="false"/>
+      <output name="O" num_pins="8" equivalent="false"/>
+      <input name="FCIN" num_pins="1" equivalent="false"/>
+      <output name="FCOUT" num_pins="1" equivalent="false"/>
+      <input name="EN" num_pins="1" equivalent="false"/>
+      <input name="SR" num_pins="1" equivalent="false"/>
+      <clock name="CLK" equivalent="false"/>
+
+      <pb_type name="CELLESR" num_pb="8">
+        <input name="I" num_pins="4"/>
+        <input name="EN" num_pins="1"/>
+        <input name="SR" num_pins="1"/>
+        <input name="FCIN" num_pins="1"/>
+        <output name="FCOUT" num_pins="1"/>
+        <output name="O" num_pins="1"/>
+        <clock name="CLK"/>
+
+        <pb_type name="CARRY" num_pb="1" blif_model="SB_CARRY">
+          <input name="CI" num_pins="1"/>
+          <input name="I0" num_pins="1"/>
+          <input name="I1" num_pins="1"/>
+          <output name="CO" num_pins="1"/>
+        </pb_type>
+
+        <pb_type name="LUT4" blif_model=".gate SB_LUT4" num_pb="1" class="lut">
+          <input name="I" num_pins="4" port_class="lut_in"/>
+          <output name="O" num_pins="1" port_class="lut_out"/>
+        </pb_type>
+
+        <pb_type name="DFFESR" blif_model=".gate SB_DFFESR" num_pb="1"
+          class="flipflop">
+          <input name="D" num_pins="1" port_class="D"/>
+          <input name="EN" num_pins="1"/>
+          <input name="SR" num_pins="1"/>
+          <output name="Q" num_pins="1" port_class="Q"/>
+          <clock name="CLK" port_class="clock"/>
+        </pb_type>
+
+        <interconnect>
+          <direct input="I[0:2]" output="lut4.I[0:2]"/>
+          <mux input="I[3] FCIN" output="lut4.I[3]"/>
+          <direct input="I[2] FCIN I[1]" output="carry.I"/>
+          <direct input="carry.O" output="FCOUT"/>
+          <direct input="EN" output="dff.EN"/>
+          <direct input="SR" output="dff.SR"/>
+          <direct input="CLK" output="dff.CLK"/>
+          <mux input="lut4.O dff.O" output="O"/>
+        </interconnect>
+      </pb_type>
+
+      <interconnect>
+        <direct input="I[0:31]" output="CELL[0:7].I[0:3]"/>
+        <direct input="CELL[0:7].O" output="O[0:7]"/>
+        <complete input="CLK" output="CELL[0:7].CLK"/>
+        <direct input="EN" output="en_en.I"/>
+        <complete input="en_en.O" output="CELL[0:7].EN"/>
+        <complete input="SR" output="CELL[0:7].SR"/>
+        <direct input="FCIN" output="CELL[0].FCIN"/>
+        <direct input="CELL[0].FCOUT" output="CELL[1].FCIN"/>
+        <direct input="CELL[1].FCOUT" output="CELL[2].FCIN"/>
+        <direct input="CELL[2].FCOUT" output="CELL[3].FCIN"/>
+        <direct input="CELL[3].FCOUT" output="CELL[4].FCIN"/>
+        <direct input="CELL[4].FCOUT" output="CELL[5].FCIN"/>
+        <direct input="CELL[5].FCOUT" output="CELL[6].FCIN"/>
+        <direct input="CELL[6].FCOUT" output="CELL[7].FCIN"/>
+        <direct input="CELL[7].FCOUT" output="FCOUT"/>
+      </interconnect>
+
+      <gridlocations>
+        <loc type="fill" priority="0"/>
+      </gridlocations>
+
+    </pb_type>
+
+    <pb_type>
+    </pb_type>
+
+  </complexblocklist>
+</architecture>
