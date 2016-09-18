@@ -107,56 +107,58 @@
   <segmentlist>
   </segmentlist>
   <complexblocklist>
-    <pb_type name="PLBESR">
-      <input name="I" num_pins="32" equivalent="false"/>
-      <output name="O" num_pins="8" equivalent="false"/>
-      <input name="FCIN" num_pins="1" equivalent="false"/>
-      <output name="FCOUT" num_pins="1" equivalent="false"/>
-      <input name="EN" num_pins="1" equivalent="false"/>
-      <input name="SR" num_pins="1" equivalent="false"/>
-      <clock name="CLK" equivalent="false"/>
+    <pb_type name="PLB">
+      <mode name="PLBESR"/>
+        <input name="I" num_pins="32" equivalent="false"/>
+        <output name="O" num_pins="8" equivalent="false"/>
+        <input name="FCIN" num_pins="1" equivalent="false"/>
+        <output name="FCOUT" num_pins="1" equivalent="false"/>
+        <input name="EN" num_pins="1" equivalent="false"/>
+        <input name="SR" num_pins="1" equivalent="false"/>
+        <clock name="CLK" equivalent="false"/>
 
-      <pb_type name="CELLESR" num_pb="8">
-        <input name="I" num_pins="4"/>
-        <input name="EN" num_pins="1"/>
-        <input name="SR" num_pins="1"/>
-        <input name="FCIN" num_pins="1"/>
-        <output name="FCOUT" num_pins="1"/>
-        <output name="O" num_pins="1"/>
-        <clock name="CLK"/>
-
-        <pb_type name="CARRY" num_pb="1" blif_model="SB_CARRY">
-          <input name="CI" num_pins="1"/>
-          <input name="I0" num_pins="1"/>
-          <input name="I1" num_pins="1"/>
-          <output name="CO" num_pins="1"/>
-        </pb_type>
-
-        <pb_type name="LUT4" blif_model=".gate SB_LUT4" num_pb="1" class="lut">
-          <input name="I" num_pins="4" port_class="lut_in"/>
-          <output name="O" num_pins="1" port_class="lut_out"/>
-        </pb_type>
-
-        <pb_type name="DFFESR" blif_model=".gate SB_DFFESR" num_pb="1"
-          class="flipflop">
-          <input name="D" num_pins="1" port_class="D"/>
+        <pb_type num_pb="8">
+          <input name="I" num_pins="4"/>
           <input name="EN" num_pins="1"/>
           <input name="SR" num_pins="1"/>
-          <output name="Q" num_pins="1" port_class="Q"/>
-          <clock name="CLK" port_class="clock"/>
-        </pb_type>
+          <input name="FCIN" num_pins="1"/>
+          <output name="FCOUT" num_pins="1"/>
+          <output name="O" num_pins="1"/>
+          <clock name="CLK"/>
 
-        <interconnect>
-          <direct input="I[0:2]" output="lut4.I[0:2]"/>
-          <mux input="I[3] FCIN" output="lut4.I[3]"/>
-          <direct input="I[2] FCIN I[1]" output="carry.I"/>
-          <direct input="carry.O" output="FCOUT"/>
-          <direct input="EN" output="dff.EN"/>
-          <direct input="SR" output="dff.SR"/>
-          <direct input="CLK" output="dff.CLK"/>
-          <mux input="lut4.O dff.O" output="O"/>
-        </interconnect>
-      </pb_type>
+          <pb_type name="CARRY" num_pb="1" blif_model=".gate SB_CARRY">
+            <input name="CI" num_pins="1"/>
+            <input name="I0" num_pins="1"/>
+            <input name="I1" num_pins="1"/>
+            <output name="CO" num_pins="1"/>
+          </pb_type>
+
+          <pb_type name="LUT4" blif_model=".gate SB_LUT4" num_pb="1" class="lut">
+            <input name="I" num_pins="4" port_class="lut_in"/>
+            <output name="O" num_pins="1" port_class="lut_out"/>
+          </pb_type>
+
+          <pb_type name="DFFESR" blif_model=".gate SB_DFFESR" num_pb="1"
+            class="flipflop">
+            <input name="D" num_pins="1" port_class="D"/>
+            <input name="EN" num_pins="1"/>
+            <input name="SR" num_pins="1"/>
+            <output name="Q" num_pins="1" port_class="Q"/>
+            <clock name="CLK" port_class="clock"/>
+          </pb_type>
+
+          <interconnect>
+            <direct input="I[0:2]" output="lut4.I[0:2]"/>
+            <mux input="I[3] FCIN" output="lut4.I[3]"/>
+            <direct input="I[2] FCIN I[1]" output="carry.I"/>
+            <direct input="carry.O" output="FCOUT"/>
+            <direct input="EN" output="dff.EN"/>
+            <direct input="SR" output="dff.SR"/>
+            <direct input="CLK" output="dff.CLK"/>
+            <mux input="lut4.O dff.O" output="O"/>
+          </interconnect>
+        </pb_type>
+      </mode>
 
       <interconnect>
         <direct input="I[0:31]" output="CELL[0:7].I[0:3]"/>
@@ -186,4 +188,18 @@
     </pb_type>
 
   </complexblocklist>
+
+  <directlist>
+    <!--- TODO: Check the coordinates go in the right direction! -->
+
+    <!-- Span-4 Interconnections -->
+    <direct from_pin="sp4_r[0:47]" to_pin="sp4_l[0:47]" x_offset="1" y_offset="0" z_offset="0"/>
+    <direct from_pin="sp4_v_b[0:47]" to_pin="sp4_v_t[0:47]" x_offset="0" y_offset="1" z_offset="0"/>
+    <direct from_pin="sp4_r_v_b[0:47]" to_pin="sp4_v_b[0:47]" x_offset="1" y_offset="0" z_offset="0"/>
+
+    <!-- Span-12 Interconnections -->
+    <direct from_pin="sp12_r[0:47]" to_pin="sp12_l[0:47]" x_offset="1" y_offset="0" z_offset="0"/>
+    <direct from_pin="sp12_v_b[0:47]" to_pin="sp12_v_t[0:47]" x_offset="0" y_offset="1" z_offset="0"/>
+    <direct from_pin="sp12_r_v_b[0:47]" to_pin="sp12_v_b[0:47]" x_offset="1" y_offset="0" z_offset="0"/>
+  </directlist>
 </architecture>
