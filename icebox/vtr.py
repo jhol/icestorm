@@ -15,6 +15,9 @@
 #  OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 #
 
+# Electrical and timing characteristics have been taken from vpr/sample_arch.xml
+# which has realistic model data for a hypothetical 40nm architecure.
+
 import lxml.etree as et
 import sys
 
@@ -79,16 +82,26 @@ e_architecture.append(et.Element('layout', width='33', height='33'))
 #
 
 e_device = et.Element('device')
+e_architecture.append(e_device)
 
-# Taken from vpr/sample_arch.xml which has realistic model data for a
-# hypothetical 40nm architecure
 e_device.append(et.Element(
     'sizing', R_minW_nmos='8926', R_minW_pmos='16067'))
 e_device.append(et.Element(
     'timing', C_ipin_cblock='1.47e-15', T_ipin_cblock='7.247000e-11'))
+e_device.append(et.Element('area', grid_logic_tile_area="53894"))
 
-e_device.append(et.Element('switch_block'))
-e_architecture.append(e_device)
+e_device.append(et.Element('switch_block', type='custom'))
+
+#
+# Switch List
+#
+
+e_switchlist = et.Element('switchlist')
+e_architecture.append(e_switchlist)
+
+e_switchlist.append(et.Element('switch', type='mux', name='0', R='551',
+    Cin='.77e-15', Cout='4e-15', Tdel='58e-12', mux_trans_size='2.630740',
+    buf_size='27.645901'))
 
 #
 # Segment List
@@ -99,7 +112,7 @@ e_architecture.append(e_segmentlist)
 
 for length in [4, 12]:
     e_segment = et.Element('segment', name='span%d' % length, freq='50',
-        length=str(length), type='bidir', Cmetal='0')
+        length=str(length), type='bidir', Rmetal='101', Cmetal='22.5e-15')
 
     e_sb = et.Element('sb', type='pattern')
     e_sb.text = ' '.join(['0'] * (length + 1))
@@ -109,20 +122,31 @@ for length in [4, 12]:
     e_cb.text = ' '.join(['1'] * length)
     e_segment.append(e_cb)
 
-    e_wire_switch = et.Element('wire_switch', name='?')
+    e_wire_switch = et.Element('wire_switch', name='0')
     e_segment.append(e_wire_switch)
 
-    e_opin_switch = et.Element('opin_switch', name='?')
+    e_opin_switch = et.Element('opin_switch', name='0')
     e_segment.append(e_opin_switch)
 
     e_segmentlist.append(e_segment)
 
 #
-# Switch List
+# Switch Block List
 #
 
-e_switchlist = et.Element('switchlist')
-e_architecture.append(e_switchlist)
+e_switchblocklist = et.Element('switchblocklist')
+
+e_switchblock = et.Element('switchblock', name='sb', type='unidir')
+
+e_switchblocklocation = et.Element('switchblock_location', type='EVERYWHERE')
+e_switchblock.append(e_switchblocklocation)
+
+e_switchfuncs = et.Element('switchfuncs')
+e_switchblock.append(e_switchfuncs)
+
+e_switchblocklist.append(e_switchblock)
+
+e_architecture.append(e_switchblocklist)
 
 #
 # Complex Block List
@@ -134,6 +158,31 @@ def ios(tag, name_fmt, indices=1, num_pins=1, **kw):
 
 e_complexblocklist = et.Element('complexblocklist')
 e_architecture.append(e_complexblocklist)
+
+#
+# IO
+#
+
+def pb_type_io():
+    e_pb_type = et.Element('pb_type', name='io', capacity='2')
+
+    # Declare I/O
+    e_pb_type.extend(ios('input', 'io_{0}/D_IN', 2, 2))
+    e_pb_type.extend(ios('output', 'io_{0}/D_OUT', 2, 2))
+    e_pb_type.extend(ios('input', 'io_{0}/OUT_ENB', 2))
+    e_pb_type.extend(ios('input', 'io_global/cen'))
+    e_pb_type.extend(ios('input', 'io_global/inclk'))
+    e_pb_type.extend(ios('output', 'io_global/outclk'))
+    e_pb_type.extend(ios('input', 'io_global/latch'))
+
+    # Declare locations
+    e_gridlocations = et.Element('gridlocations')
+    e_gridlocations.append(et.Element('loc', type='perimeter', priority='2'))
+    e_pb_type.append(e_gridlocations)
+
+    return e_pb_type
+
+e_complexblocklist.append(pb_type_io())
 
 #
 # LOGIC
@@ -160,7 +209,7 @@ def plb_mode(neg_clk, en, sync, set=False):
     return e_mode
 
 def pb_type_plb():
-    e_pb_type = et.Element('pb_type', name='PLB', height='2')
+    e_pb_type = et.Element('pb_type', name='plb', height='2')
 
     # Declare I/O
     e_pb_type.extend(ios('clock', 'lutff_global/clk'))
@@ -185,13 +234,12 @@ def pb_type_plb():
 
 e_complexblocklist.append(pb_type_plb())
 
-
 #
 # RAM
 #
 
 def pb_type_ram():
-    e_pb_type = et.Element('pb_type', name='RAM')
+    e_pb_type = et.Element('pb_type', name='ram')
     #setattr(e_pb_type, 'class', 'memory')
 
     # Declare I/O
@@ -218,31 +266,8 @@ def pb_type_ram():
 
 e_complexblocklist.append(pb_type_ram())
 
-
 #
-# IO
+# Output XML
 #
-
-def pb_type_io():
-    e_pb_type = et.Element('pb_type', name='IO')
-
-    # Declare I/O
-    e_pb_type.extend(ios('input', 'io_{0}/D_IN', 2, 2))
-    e_pb_type.extend(ios('output', 'io_{0}/D_OUT', 2, 2))
-    e_pb_type.extend(ios('input', 'io_{0}/OUT_ENB', 2))
-    e_pb_type.extend(ios('input', 'io_global/cen'))
-    e_pb_type.extend(ios('input', 'io_global/inclk'))
-    e_pb_type.extend(ios('output', 'io_global/outclk'))
-    e_pb_type.extend(ios('input', 'io_global/latch'))
-
-    # Declare locations
-    e_gridlocations = et.Element('gridlocations')
-    e_gridlocations.append(et.Element('loc', type='perimeter', priority='2'))
-    e_pb_type.append(e_gridlocations)
-
-    return e_pb_type
-
-e_complexblocklist.append(pb_type_io())
-
 
 sys.stdout.write(et.tostring(e_architecture, pretty_print=True).decode('utf-8'))
