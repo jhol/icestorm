@@ -180,6 +180,13 @@ def pb_type_io():
     e_gridlocations.append(et.Element('loc', type='perimeter', priority='2'))
     e_pb_type.append(e_gridlocations)
 
+    # Declare interconnects
+    e_interconnect = et.Element('interconnect')
+    e_pb_type.append(e_interconnect)
+
+    # Declare pinlocationss
+    e_pb_type.append(et.Element('pinlocations', pattern='spread'))
+
     return e_pb_type
 
 e_complexblocklist.append(pb_type_io())
