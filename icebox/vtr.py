@@ -18,6 +18,12 @@
 # Electrical and timing characteristics have been taken from vpr/sample_arch.xml
 # which has realistic model data for a hypothetical 40nm architecure.
 
+# TODO
+#  - .subckt vs. .gate
+#  - combinational_sink_ports
+#  - interconnects
+
+
 import lxml.etree as et
 import sys
 
@@ -28,21 +34,26 @@ e_architecture = et.Element('architecture')
 #
 
 class Model:
-    def __init__(self, name, inputs, outputs, clocks=[]):
+    def __init__(self, name, inputs, outputs, clock=None):
         self.name = name
         self.inputs = inputs
         self.outputs = outputs
-        self.clocks = clocks
+        self.clock = clock
 
     def model(self):
-        def create_ports_node(type):
-            e_ports = et.Element(type + '_ports')
-            e_ports.extend([et.Element('port', name=i) for i in
-                getattr(self, type + 's', [])])
-            return e_ports
-        e_model = et.Element('model', name='.gate ' + self.name)
-        e_model.extend(
-            [create_ports_node(t) for t in ['input', 'output', 'clock']])
+        e_model = et.Element('model', name=self.name)
+
+        e_input_ports = et.Element('input_ports')
+        e_input_ports.extend(
+            [et.Element('port', name=i, clock=self.clock if self.clock else None)
+                for i in self.inputs] +
+            [et.Element('port', name=self.clock, is_clock="1")] if self.clock else [])
+
+        e_output_ports = et.Element('output_ports')
+        e_output_ports.extend(
+            [et.Element('port', name=i) for i in self.outputs])
+
+        e_model.extend([e_input_ports, e_output_ports])
         return e_model
 
 def dff_types():
@@ -55,17 +66,20 @@ def dff_suffix(neg_clk, en, sync, set=False):
     return (('N' if neg_clk else '') + ('E' if en else '') +
         ('S' + ('S' if set else 'R') if sync else ''))
 
-def dff(neg_clk, en, sync, set=False):
-    return Model('SB_DFF' + dff_suffix(neg_clk, en, sync, set),
-        ['D'] + (['E'] if en else []) + ((['S'] if set else ['R']) if sync else []),
-        ['Q'], ['C'])
+def dff_name(*k):
+    return 'DFF' + dff_suffix(*k)
 
-carry = Model('SB_CARRY', ['CI', 'I0', 'I1'], ['C0'])
+def dff(neg_clk, en, sync, set=False):
+    return Model('SB_' + dff_name(neg_clk, en, sync, set),
+        ['D'] + (['E'] if en else []) + ((['S'] if set else ['R']) if sync else []),
+        ['Q'], 'C')
+
+carry = Model('SB_CARRY', ['CI', 'I0', 'I1'], ['CO'])
 dffs = [dff(*t) for t in dff_types()]
-gb = Model('SB_GB', ['USER_SIGNAL_TO_GLOBAL_BUFFER'], ['GLOBAL_BUFFER_OUTPUT'])
+#gb = Model('SB_GB', ['USER_SIGNAL_TO_GLOBAL_BUFFER'], ['GLOBAL_BUFFER_OUTPUT'])
 lut4 = Model('SB_LUT4', ['I0', 'I1', 'I2', 'I3'], ['O'])
 
-models = [carry] + dffs + [gb, lut4]
+models = [carry] + dffs + [lut4] #[gb, lut4]
 
 e_models = et.Element('models')
 e_models.extend([m.model() for m in models])
@@ -75,7 +89,10 @@ e_architecture.append(e_models)
 # Layout
 #
 
-e_architecture.append(et.Element('layout', width='33', height='33'))
+e_fixed_layout = et.Element('fixed_layout', name='ice40', width='33', height='33')
+e_layout = et.Element('layout')
+e_layout.append(e_fixed_layout)
+e_architecture.append(e_layout)
 
 #
 # Device
@@ -175,10 +192,17 @@ def pb_type_io():
     e_pb_type.extend(ios('output', 'io_global/outclk'))
     e_pb_type.extend(ios('input', 'io_global/latch'))
 
+    # Declare fc
+    e_pb_type.append(et.Element('fc',
+        default_in_type='abs', default_in_val='1',
+        default_out_type='abs', default_out_val='1'))
+
     # Declare locations
+    '''
     e_gridlocations = et.Element('gridlocations')
     e_gridlocations.append(et.Element('loc', type='perimeter', priority='2'))
     e_pb_type.append(e_gridlocations)
+    '''
 
     # Declare interconnects
     e_interconnect = et.Element('interconnect')
@@ -198,18 +222,56 @@ e_complexblocklist.append(pb_type_io())
 def plb_mode(neg_clk, en, sync, set=False):
     e_mode = et.Element('mode', name='PLB' + dff_suffix(neg_clk, en, sync, set))
 
-    e_pb_type = et.Element('pb_type', num_pb='8')
+    e_pb_type = et.Element('pb_type', num_pb='8', name='lutff')
 
-    e_pb_type_carry = et.Element('pb_type', name='CARRY', blif='.gate SB_CARRY')
+    # CARRY
+
+    e_pb_type_carry = et.Element('pb_type', name='CARRY',
+        blif_model='.subckt SB_CARRY', num_pb='1')
     e_pb_type_carry.extend(ios('input', 'CI'))
     e_pb_type_carry.extend(ios('input', 'I{0}', 2))
     e_pb_type_carry.extend(ios('output', 'CO'))
+
+    e_interconnect = et.Element('interconnect')
+    e_pb_type_carry.append(e_interconnect)
+
     e_pb_type.append(e_pb_type_carry)
 
-    e_pb_type_lut4 = et.Element('pb_type', name='LUT4', blif='.gate SB_LUT4')
-    e_pb_type_lut4.extend(ios('input', 'I', 1, 4))
+    # LUT4
+
+    e_pb_type_lut4 = et.Element('pb_type', name='LUT4',
+        blif_model='.subckt SB_LUT4', num_pb='1')
+    e_pb_type_lut4.extend(ios('input', 'I{0}', 4))
     e_pb_type_lut4.extend(ios('output', 'O'))
+
+    e_interconnect = et.Element('interconnect')
+    e_pb_type_lut4.append(e_interconnect)
+
     e_pb_type.append(e_pb_type_lut4)
+
+    # DFF
+
+    name = dff_name(neg_clk, en, sync, set)
+
+    e_pb_type_dff = et.Element('pb_type', name=name,
+        blif_model='.subckt SB_' + name, num_pb='1')
+    e_pb_type_dff.extend(ios('input', 'C'))
+    e_pb_type_dff.extend(ios('input', 'D'))
+    if en: e_pb_type_dff.extend(ios('input', 'E'))
+    if sync: e_pb_type_dff.extend(ios('input', 'S' if set else 'R'))
+    e_pb_type_dff.extend(ios('output', 'Q'))
+
+    e_interconnect = et.Element('interconnect')
+    e_pb_type_dff.append(e_interconnect)
+
+    e_pb_type.append(e_pb_type_dff)
+
+
+    e_interconnect = et.Element('interconnect')
+    e_pb_type.append(e_interconnect)
+
+    e_interconnect = et.Element('interconnect')
+    e_mode.append(e_interconnect)
 
     e_mode.append(e_pb_type)
 
@@ -219,7 +281,7 @@ def pb_type_plb():
     e_pb_type = et.Element('pb_type', name='plb', height='2')
 
     # Declare I/O
-    e_pb_type.extend(ios('clock', 'lutff_global/clk'))
+    e_pb_type.extend(ios('input', 'lutff_global/clk'))
     e_pb_type.extend(ios('input', 'lutff_global/cen'))
     e_pb_type.extend(ios('input', 'lutff_global/s_r'))
     e_pb_type.extend(ios('input', 'carry_in'))
@@ -232,10 +294,24 @@ def pb_type_plb():
     # Modes
     e_pb_type.extend([plb_mode(*t) for t in dff_types()])
 
+    # Declare fc
+    e_pb_type.append(et.Element('fc',
+        default_in_type='abs', default_in_val='1',
+        default_out_type='abs', default_out_val='1'))
+
+    # Declare interconnects
+    e_interconnect = et.Element('interconnect')
+    e_pb_type.append(e_interconnect)
+
+    # Delare the pin locations
+    e_pb_type.append(et.Element('pinlocations', pattern='spread'))
+
     # Declare locations
+    '''
     e_gridlocations = et.Element('gridlocations')
     e_gridlocations.append(et.Element('loc', type='fill', priority='0'))
     e_pb_type.append(e_gridlocations)
+    '''
 
     return e_pb_type
 
@@ -256,18 +332,32 @@ def pb_type_ram():
     e_pb_type.extend(ios('input', 'ram/MASK', 1, 16))
     e_pb_type.extend(ios('input', 'ram/WDATA', 1, 16, port_class='data_in2'))
     e_pb_type.extend(ios('input', 'ram/RCLKE'))
-    e_pb_type.extend(ios('clock', 'ram/RCLK'))
+    e_pb_type.extend(ios('input', 'ram/RCLK'))
     e_pb_type.extend(ios('input', 'ram/RE'))
     e_pb_type.extend(ios('input', 'ram/WCLKE'))
     e_pb_type.extend(ios('clock', 'ram/WCLK'))
     e_pb_type.extend(ios('input', 'ram/WE', port_class='write_en2'))
 
+    # Declare fc
+    e_pb_type.append(et.Element('fc',
+        default_in_type='abs', default_in_val='1',
+        default_out_type='abs', default_out_val='1'))
+
+    # Delare the pin locations
+    e_pb_type.append(et.Element('pinlocations', pattern='spread'))
+
     # Declare locations
+    '''
     e_gridlocations = et.Element('gridlocations')
     for col in [8, 25]:
         e_gridlocations.append(et.Element('loc', type='col', start=str(col),
             repeat='1', priority='1'))
     e_pb_type.append(e_gridlocations)
+    '''
+
+    # Declare interconnects
+    e_interconnect = et.Element('interconnect')
+    e_pb_type.append(e_interconnect)
 
     return e_pb_type
 
