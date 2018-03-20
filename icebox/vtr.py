@@ -22,6 +22,8 @@
 #  - .subckt vs. .gate
 #  - combinational_sink_ports
 #  - interconnects
+#  - carry logic mux modes
+#  - class="flipflop", class="lut", port_class=
 
 
 import lxml.etree as et
@@ -44,10 +46,14 @@ class Model:
         e_model = et.Element('model', name=self.name)
 
         e_input_ports = et.Element('input_ports')
-        e_input_ports.extend(
-            [et.Element('port', name=i, clock=self.clock if self.clock else None)
-                for i in self.inputs] +
-            [et.Element('port', name=self.clock, is_clock="1")] if self.clock else [])
+        if self.clock:
+            e_input_ports.extend(
+                [et.Element('port', name=i, clock=self.clock)
+                    for i in self.inputs] +
+                [et.Element('port', name=self.clock, is_clock="1")])
+        else:
+            e_input_ports.extend(
+                [et.Element('port', name=i) for i in self.inputs])
 
         e_output_ports = et.Element('output_ports')
         e_output_ports.extend(
@@ -184,6 +190,9 @@ def pb_type_io():
     e_pb_type = et.Element('pb_type', name='io', capacity='2')
 
     # Declare I/O
+    e_pb_type.extend(ios('input', 'inpad'))
+    e_pb_type.extend(ios('output', 'outpad'))
+
     e_pb_type.extend(ios('input', 'io_{0}/D_IN', 2, 2))
     e_pb_type.extend(ios('output', 'io_{0}/D_OUT', 2, 2))
     e_pb_type.extend(ios('input', 'io_{0}/OUT_ENB', 2))
@@ -255,11 +264,19 @@ def plb_mode(neg_clk, en, sync, set=False):
 
     e_pb_type_dff = et.Element('pb_type', name=name,
         blif_model='.subckt SB_' + name, num_pb='1')
-    e_pb_type_dff.extend(ios('input', 'C'))
+
+    e_pb_type_dff.extend(ios('clock', 'C'))
     e_pb_type_dff.extend(ios('input', 'D'))
-    if en: e_pb_type_dff.extend(ios('input', 'E'))
-    if sync: e_pb_type_dff.extend(ios('input', 'S' if set else 'R'))
+    e_pb_type_dff.extend([et.Element('T_setup', value='0', port='D', clock='C')])
+    if en:
+        e_pb_type_dff.extend(ios('input', 'E'))
+        e_pb_type_dff.extend([et.Element('T_setup', value='0', port='E', clock='C')])
+    if sync:
+        port = 'S' if set else 'R'
+        e_pb_type_dff.extend(ios('input', port))
+        e_pb_type_dff.extend([et.Element('T_setup', value='0', port=port, clock='C')])
     e_pb_type_dff.extend(ios('output', 'Q'))
+
 
     e_interconnect = et.Element('interconnect')
     e_pb_type_dff.append(e_interconnect)
