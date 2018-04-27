@@ -793,8 +793,14 @@ class LogicCell:
         if fields[0] == 'lut' and len(fields) == 2 and self.lut_bits is None:
             self.lut_bits = fields[1]
         elif fields[0] == 'out' and len(fields) >= 3 and fields[1] == '=':
-            self.lut_bits = logic_expression_to_lut(
-                ' '.join(fields[2:]), ('in_0', 'in_1', 'in_2', 'in_3'))
+            m = re.match("([0-9]+)'b([01]+)", fields[2])
+            if m:
+                self.lut_bits = m.group(2)
+                if len(self.lut_bits) != int(m.group(1)):
+                    raise ParseError
+            else:
+                self.lut_bits = logic_expression_to_lut(
+                    ' '.join(fields[2:]), ('in_0', 'in_1', 'in_2', 'in_3'))
         elif fields == ['enable_carry']:
             self.seq_bits[0] = '1'
         elif fields == ['enable_dff']:
