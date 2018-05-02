@@ -511,7 +511,8 @@ def logic_expression_to_lut(s, args):
 
 
 class ParseError(Exception):
-    pass
+    def __init__(self):
+        assert(False)
 
 def parse_bool(s):
     if s == 'on':
