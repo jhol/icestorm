@@ -37,6 +37,24 @@ class iceconfig:
         self.extra_bits = set()
         self.symbols = dict()
 
+    def setup_empty_test4(self):
+        self.clear()
+        self.device = "test4"
+        self.max_x = 3
+        self.max_y = 3
+
+        for x in range(1, self.max_x):
+            for y in range(1, self.max_y):
+                self.logic_tiles[(x, y)] = ["0" * 54 for i in range(16)]
+
+        for x in range(1, self.max_x):
+            self.io_tiles[(x, 0)] = ["0" * 18 for i in range(16)]
+            self.io_tiles[(x, self.max_y)] = ["0" * 18 for i in range(16)]
+
+        for y in range(1, self.max_y):
+            self.io_tiles[(0, y)] = ["0" * 18 for i in range(16)]
+            self.io_tiles[(self.max_x, y)] = ["0" * 18 for i in range(16)]
+
     def setup_empty_384(self):
         self.clear()
         self.device = "384"
@@ -302,7 +320,7 @@ class iceconfig:
     
     def tile_db(self, x, y):
         # Only these devices have IO on the left and right sides.
-        if self.device in ["384", "1k", "8k"]:
+        if self.device in ["test4", "384", "1k", "8k"]:
           if x == 0: return iotile_l_db
           if x == self.max_x: return iotile_r_db
         # The 5k needs an IO db including the extra bits
@@ -330,7 +348,7 @@ class iceconfig:
             if (x, y) in self.logic_tiles: return logictile_8k_db
             if (x, y) in self.ramb_tiles: return rambtile_8k_db
             if (x, y) in self.ramt_tiles: return ramttile_8k_db
-        elif self.device == "384":
+        elif self.device == 'test4' or self.device == "384":
             if (x, y) in self.logic_tiles: return logictile_384_db
 
         print("Tile type unknown at (%d, %d)" % (x, y))
