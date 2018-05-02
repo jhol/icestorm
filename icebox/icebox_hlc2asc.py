@@ -543,6 +543,9 @@ class Main:
             elif self.device == '384':
                 self.ic = icebox.iceconfig()
                 self.ic.setup_empty_384()
+            elif self.device == 'test4':
+                self.ic = icebox.iceconfig()
+                self.ic.setup_empty_test4()
             else:
                 raise ParseError
         #elif fields[0] == 'coldboot' and fields[1] == '=' \
