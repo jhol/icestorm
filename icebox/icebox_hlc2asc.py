@@ -817,12 +817,7 @@ class LogicCell:
             self.seq_bits[3] = '1'
         elif len(fields) >= 3 and (fields[1] == '->' or fields[1] == '<->'):
             prefix = 'lutff_%d/' % self.index
-            if fields[0] == 'out':
-                self.tile.read([prefix + fields[0]] + fields[1:])
-            elif fields[-1].startswith('in_'):
-                self.tile.read(fields[:-1] + [prefix + fields[-1]])
-            else:
-                raise ParseError
+            self.tile.read([prefix + f if (f == 'out' or f.startswith('in_')) else f for f in fields])
             return
 
         bits = ''.join([
